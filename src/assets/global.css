@@ -1,0 +1,52 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  user-select: none;
+}
+.drag {
+  -webkit-app-region: drag;
+}
+.no-drag {
+  -webkit-app-region: no-drag;
+}
+.container {
+  background-color: #f7fbff;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px;
+}
+header .close {
+  user-select: none;
+  cursor: pointer;
+}
+/* 滚动条整体样式 */
+::-webkit-scrollbar {
+  width: 10px;
+  /* 纵向滚动条宽度 */
+  height: 10px;
+  /* 横向滚动条高度 */
+}
+/* 滚动条轨道 */
+::-webkit-scrollbar-track {
+  background-color: #f1f1f1;
+  /* 轨道背景颜色 */
+}
+/* 滚动条滑块 */
+::-webkit-scrollbar-thumb {
+  background-color: #888;
+  /* 滑块背景颜色 */
+  border-radius: 5px;
+  /* 滑块圆角 */
+}
+/* 滚动条滑块悬停状态 */
+::-webkit-scrollbar-thumb:hover {
+  background-color: #555;
+  /* 悬停时滑块背景颜色 */
+}
