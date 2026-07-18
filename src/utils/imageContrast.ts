@@ -15,24 +15,41 @@ export async function imageContrastV2(
   abortController: Ref<AbortController>
 ) {
   const hash2file: any = {};
-  for (let i = 0; i < imgList.length; i++) {
-    if (abortController.value.signal.aborted) {
-      break;
-    }
-    const filePath = imgList[i];
-    cb(i);
+  const CONCURRENCY = 6; // 并发数
+  let completedCount = 0;
+
+  // 并发池：每次执行最多 CONCURRENCY 个任务
+  async function processImage(filePath: string): Promise<void> {
+    if (abortController.value.signal.aborted) return;
     const hash = await ipcRenderer.invoke("scaleHash", filePath);
+    if (abortController.value.signal.aborted) return;
     if (hash2file[hash]) {
       hash2file[hash].push(filePath);
     } else {
       hash2file[hash] = [filePath];
     }
+    completedCount++;
+    cb(completedCount);
   }
+
+  // 用并发池处理所有图片
+  const executing = new Set<Promise<void>>();
+  for (let i = 0; i < imgList.length; i++) {
+    if (abortController.value.signal.aborted) break;
+    const p = processImage(imgList[i]);
+    executing.add(p);
+    p.finally(() => executing.delete(p));
+    if (executing.size >= CONCURRENCY) {
+      await Promise.race(executing);
+    }
+  }
+  // 等待剩余任务完成
+  await Promise.all(executing);
   console.log(hash2file);
   const contrastImgList = [];
   for (let hash in hash2file) {
     const fileList = hash2file[hash];
-    if (fileList.length > 1 || hash === "badImg") {
+    if (fileList.length > 1) {
       const newFileList = fileList.map((filePath: string) => {
         const stats = fs.statSync(filePath);
         return {

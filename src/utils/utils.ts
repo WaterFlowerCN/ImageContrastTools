@@ -1,6 +1,5 @@
 import fs from "node:fs";
 import path from "node:path";
-import trash from "trash";
 import { ImageItem } from "../types/interface";
 export function getImageFiles(directory: string): string[] {
   let imageFiles: string[] = [];
@@ -11,7 +10,7 @@ export function getImageFiles(directory: string): string[] {
       const stats = fs.statSync(filePath);
       if (stats.isFile()) {
         const extname = path.extname(file).toLowerCase();
-        if ([".jpg", ".jpeg", ".png"].includes(extname)) {
+        if ([".jpg", ".jpeg", ".png", ".webp", ".avif"].includes(extname)) {
           imageFiles.push(filePath);
         }
       } else if (stats.isDirectory()) {
@@ -33,9 +32,6 @@ export function formatFileSize(bytes: number) {
   const value = (bytes / Math.pow(1024, size)).toFixed(2); // 格式化文件大小，保留两位小数
 
   return `${value} ${units[size]}`;
-}
-export function moveDustbin(fileList: string[]) {
-  return trash(fileList);
 }
 export function deleteFileList(fileList: string[]) {
   fileList.forEach((filePath) => {

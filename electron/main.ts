@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from "electron";
+import { app, BrowserWindow, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,6 +56,20 @@ function createWindow() {
     // win.loadFile('dist/index.html')
     win.loadFile(path.join(RENDERER_DIST, "index.html"));
   }
+
+  // 拦截外部链接，用系统默认浏览器打开
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  win.webContents.on("will-navigate", (event, url) => {
+    // 只拦截 http/https 外部链接，本地文件加载不拦截
+    if (url.startsWith("http") && !url.includes("localhost")) {
+      event.preventDefault();
+      shell.openExternal(url);
+    }
+  });
   
   ipcMain.on('exitProcess', function () {
     if(win){

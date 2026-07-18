@@ -7,11 +7,13 @@
 基于Electron的跨平台图片查重工具，支持文件夹扫描、重复文件识别与可视化处理。
 
 ## ✨ 功能特性
-- 文件夹递归扫描（支持常见图片格式：JPG/PNG）
-- 基于内容哈希的重复文件识别算法
+- 文件夹递归扫描（支持常见图片格式：JPG/PNG/WebP/AVIF）
+- 基于内容哈希（MD5 + Sharp 缩放）的精确重复图片识别
+- 并发哈希计算加速，大幅提升查重速度
 - 可视化结果展示（相似图片分组对比）
-- 一键删除/移动重复文件功能
-- 多线程处理加速查重过程
+- 智能删除选择（按文件大小、文件名长度自动筛选）
+- 一键删除/移动重复文件（回收站/永久删除/移至文件夹）
+- 损坏图片自动跳过，避免误判为重复
 
 ## 📦 预编译版本
 
@@ -26,8 +28,8 @@
 ### 安装指南
 ```bash
 # 克隆仓库
-git clone https://github.com/html365/ImageContrastTools.git
-cd cd ImageContrastTools
+git clone https://github.com/WaterFlowerCN/ImageContrastTools.git
+cd ImageContrastTools
 
 # 安装依赖
 npm install

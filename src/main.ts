@@ -10,6 +10,7 @@ import {
   Checkbox,
   Dropdown,
   Menu,
+  Modal,
 } from "ant-design-vue";
 import "ant-design-vue/dist/reset.css";
 const app = createApp(App);
@@ -21,7 +22,8 @@ app
   .use(Image)
   .use(Checkbox)
   .use(Dropdown)
-  .use(Menu);
+  .use(Menu)
+  .use(Modal);
 app.mount("#app").$nextTick(() => {
   // Use contextBridge
   console.log(window.ipcRenderer)

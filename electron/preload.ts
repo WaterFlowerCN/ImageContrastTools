@@ -1,6 +1,5 @@
 import { ipcRenderer, contextBridge } from "electron";
 import fs from "fs";
-import trash from "trash";
 import sharp from "sharp";
 import crypto from "crypto";
 // --------- Expose some API to the Renderer process ---------
@@ -28,9 +27,6 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
   },
   showFolderDialog() {
     return ipcRenderer.invoke("showFolderDialog");
-  },
-  moveDustbin(fileList: string[]) {
-    return trash(fileList);
   },
   scaleHash(filePath: string) {
     return new Promise((resolve, reject) => {

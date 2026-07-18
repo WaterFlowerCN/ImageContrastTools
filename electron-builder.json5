@@ -4,11 +4,13 @@
   appId: "image.xu.com",
   asar: true,
   asarUnpack: ["**/node_modules/sharp/**/*", "**/node_modules/@img/**/*"],
+  compression: "maximum",
   productName: "图片去重工具",
   directories: {
     output: "release/${version}",
   },
   files: ["dist", "dist-electron"],
+  afterPack: "./scripts/afterPack.cjs",
   mac: {
     target: ["dmg"],
     artifactName: "${productName}-Mac-${version}-Installer.${ext}",
@@ -20,11 +22,9 @@
       },
     ],
     artifactName: "${productName}-Windows-${version}.${ext}",
-    
-    
   },
   portable: {
-    requestExecutionLevel: "admin", // However this is not
+    requestExecutionLevel: "admin",
     unpackDirName: true,
   },
   nsis: {
