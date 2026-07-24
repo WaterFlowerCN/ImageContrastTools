@@ -9,6 +9,91 @@ import { Ref } from "vue";
 
 // import imageHash from 'image-hash'
 
+export interface OrientedFile {
+  name: string;
+  src: string;
+  size: string;
+  originSize: number;
+  createTime: string;
+  width: number;
+  height: number;
+  orientation: "horizontal" | "vertical" | "square";
+}
+
+export async function classifyByOrientation(
+  imgList: string[],
+  cb: (num: number) => void,
+  abortController: Ref<AbortController>
+): Promise<{
+  groups: { label: string; key: string; files: OrientedFile[] }[];
+}> {
+  const CONCURRENCY = 6;
+  let completedCount = 0;
+  const results: {
+    orientation: "horizontal" | "vertical" | "square";
+    filePath: string;
+    width: number;
+    height: number;
+  }[] = [];
+
+  async function processFile(filePath: string): Promise<void> {
+    if (abortController.value.signal.aborted) return;
+    const info = await ipcRenderer.invoke("getImageDimensions", filePath);
+    if (abortController.value.signal.aborted) return;
+    let orientation: "horizontal" | "vertical" | "square" = "square";
+    if (info.width > info.height) {
+      orientation = "horizontal";
+    } else if (info.height > info.width) {
+      orientation = "vertical";
+    }
+    results.push({ orientation, filePath, width: info.width, height: info.height });
+    completedCount++;
+    cb(completedCount);
+  }
+
+  // 并发池
+  const executing = new Set<Promise<void>>();
+  for (let i = 0; i < imgList.length; i++) {
+    if (abortController.value.signal.aborted) break;
+    const p = processFile(imgList[i]);
+    executing.add(p);
+    p.finally(() => executing.delete(p));
+    if (executing.size >= CONCURRENCY) {
+      await Promise.race(executing);
+    }
+  }
+  await Promise.all(executing);
+
+  const horizontal: OrientedFile[] = [];
+  const vertical: OrientedFile[] = [];
+  const square: OrientedFile[] = [];
+
+  for (const item of results) {
+    const stats = fs.statSync(item.filePath);
+    const fileInfo: OrientedFile = {
+      name: path.basename(item.filePath),
+      src: item.filePath,
+      size: formatFileSize(stats.size),
+      originSize: stats.size,
+      createTime: dayjs(stats.mtime).format("YYYY-MM-DD hh:mm:ss"),
+      width: item.width,
+      height: item.height,
+      orientation: item.orientation,
+    };
+    if (item.orientation === "horizontal") horizontal.push(fileInfo);
+    else if (item.orientation === "vertical") vertical.push(fileInfo);
+    else square.push(fileInfo);
+  }
+
+  const groups = [
+    { label: "横图", key: "horizontal", files: horizontal },
+    { label: "竖图", key: "vertical", files: vertical },
+    { label: "方图", key: "square", files: square },
+  ].filter((g) => g.files.length > 0);
+
+  return { groups };
+}
+
 export async function imageContrastV2(
   imgList: string[],
   cb: Function,

@@ -1,8 +1,8 @@
 {
   "name": "ImageContrastTools",
   "private": true,
-  "version": "1.0.2",
-  "description": "图片去重工具 - 快速查找并清理重复图片",
+  "version": "1.0.3",
+  "description": "图片去重分类工具 - 快速查找并清理重复图片",
   "author": "xu",
   "type": "module",
   "scripts": {

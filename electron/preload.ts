@@ -48,6 +48,23 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
         });
     });
   },
+  getImageDimensions(filePath: string) {
+    return new Promise((resolve) => {
+      const buffer = fs.readFileSync(filePath);
+      sharp(buffer)
+        .metadata()
+        .then((metadata) => {
+          resolve({
+            width: metadata.width || 0,
+            height: metadata.height || 0,
+          });
+        })
+        .catch((err) => {
+          console.log(err.message);
+          resolve({ width: 0, height: 0, error: true });
+        });
+    });
+  },
   // You can expose other APTs you need here.
   // ...
 });

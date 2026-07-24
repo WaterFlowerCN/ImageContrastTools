@@ -5,7 +5,7 @@
   asar: true,
   asarUnpack: ["**/node_modules/sharp/**/*", "**/node_modules/@img/**/*"],
   compression: "maximum",
-  productName: "图片去重工具",
+  productName: "图片去重分类工具",
   directories: {
     output: "release/${version}",
   },

@@ -19,6 +19,19 @@ ipcMain.handle("showFolderDialog", async () => {
   });
 });
 
+ipcMain.handle("getImageDimensions", async ({}, filePath: string) => {
+  try {
+    const metadata = await sharp(filePath).metadata();
+    return {
+      width: metadata.width || 0,
+      height: metadata.height || 0,
+    };
+  } catch (err: any) {
+    console.log(err.message);
+    return { width: 0, height: 0, error: true };
+  }
+});
+
 ipcMain.handle("moveDustbin", ({}, fileList: string[]) => {
   return Promise.all(fileList.map((path) => shell.trashItem(path)));
 });
