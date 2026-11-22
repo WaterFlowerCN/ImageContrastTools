@@ -11,6 +11,7 @@ import {
   Dropdown,
   Menu,
   Modal,
+  Pagination,
 } from "ant-design-vue";
 import "ant-design-vue/dist/reset.css";
 const app = createApp(App);
@@ -23,7 +24,8 @@ app
   .use(Checkbox)
   .use(Dropdown)
   .use(Menu)
-  .use(Modal);
+  .use(Modal)
+  .use(Pagination);
 app.mount("#app").$nextTick(() => {
   // Use contextBridge
   console.log(window.ipcRenderer)

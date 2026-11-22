@@ -27,7 +27,8 @@ export async function classifyByOrientation(
 ): Promise<{
   groups: { label: string; key: string; files: OrientedFile[] }[];
 }> {
-  const CONCURRENCY = 6;
+  // 每批交给主进程一次性读取尺寸，避免几万张图产生几万次 IPC 往返
+  const BATCH_SIZE = 64;
   let completedCount = 0;
   const results: {
     orientation: "horizontal" | "vertical" | "square";
@@ -36,40 +37,40 @@ export async function classifyByOrientation(
     height: number;
   }[] = [];
 
-  async function processFile(filePath: string): Promise<void> {
-    if (abortController.value.signal.aborted) return;
-    const info = await ipcRenderer.invoke("getImageDimensions", filePath);
-    if (abortController.value.signal.aborted) return;
-    let orientation: "horizontal" | "vertical" | "square" = "square";
-    if (info.width > info.height) {
-      orientation = "horizontal";
-    } else if (info.height > info.width) {
-      orientation = "vertical";
+  for (let start = 0; start < imgList.length; start += BATCH_SIZE) {
+    if (abortController.value.signal.aborted) break;
+    const batch = imgList.slice(start, start + BATCH_SIZE);
+    const infos: { width: number; height: number }[] = await ipcRenderer.invoke(
+      "getImageDimensionsBatch",
+      batch
+    );
+    if (abortController.value.signal.aborted) break;
+    for (let i = 0; i < batch.length; i++) {
+      const info = infos[i] || { width: 0, height: 0 };
+      let orientation: "horizontal" | "vertical" | "square" = "square";
+      if (info.width > info.height) {
+        orientation = "horizontal";
+      } else if (info.height > info.width) {
+        orientation = "vertical";
+      }
+      results.push({ orientation, filePath: batch[i], width: info.width, height: info.height });
     }
-    results.push({ orientation, filePath, width: info.width, height: info.height });
-    completedCount++;
+    completedCount += batch.length;
     cb(completedCount);
   }
-
-  // 并发池
-  const executing = new Set<Promise<void>>();
-  for (let i = 0; i < imgList.length; i++) {
-    if (abortController.value.signal.aborted) break;
-    const p = processFile(imgList[i]);
-    executing.add(p);
-    p.finally(() => executing.delete(p));
-    if (executing.size >= CONCURRENCY) {
-      await Promise.race(executing);
-    }
-  }
-  await Promise.all(executing);
 
   const horizontal: OrientedFile[] = [];
   const vertical: OrientedFile[] = [];
   const square: OrientedFile[] = [];
 
   for (const item of results) {
-    const stats = fs.statSync(item.filePath);
+    let stats: ReturnType<typeof fs.statSync>;
+    try {
+      stats = fs.statSync(item.filePath);
+    } catch {
+      // 扫描期间文件被删除或不可访问，跳过
+      continue;
+    }
     const fileInfo: OrientedFile = {
       name: path.basename(item.filePath),
       src: item.filePath,
@@ -123,7 +124,7 @@ export async function imageContrastV2(
     if (abortController.value.signal.aborted) break;
     const p = processImage(imgList[i]);
     executing.add(p);
-    p.finally(() => executing.delete(p));
+    p.then(() => executing.delete(p), () => executing.delete(p));
     if (executing.size >= CONCURRENCY) {
       await Promise.race(executing);
     }

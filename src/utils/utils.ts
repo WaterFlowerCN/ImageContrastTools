@@ -2,24 +2,41 @@ import fs from "node:fs";
 import path from "node:path";
 import { ImageItem } from "../types/interface";
 export function getImageFiles(directory: string): string[] {
-  let imageFiles: string[] = [];
-  try {
-    const files = fs.readdirSync(directory);
-    for (let file of files) {
-      const filePath = path.join(directory, file);
-      const stats = fs.statSync(filePath);
-      if (stats.isFile()) {
-        const extname = path.extname(file).toLowerCase();
-        if ([".jpg", ".jpeg", ".png", ".webp", ".avif"].includes(extname)) {
-          imageFiles.push(filePath);
-        }
-      } else if (stats.isDirectory()) {
-        // 递归调用自身，处理子目录
-        imageFiles = imageFiles.concat(getImageFiles(filePath));
+  const imageFiles: string[] = [];
+  const IMAGE_EXTS = [".jpg", ".jpeg", ".png", ".webp", ".avif"];
+  const stack: string[] = [directory];
+
+  const pushIfImage = (filePath: string, fileName: string) => {
+    if (IMAGE_EXTS.includes(path.extname(fileName).toLowerCase())) {
+      imageFiles.push(filePath);
+    }
+  };
+
+  while (stack.length) {
+    const dir = stack.pop()!;
+    let entries: fs.Dirent[];
+    try {
+      // withFileTypes 直接返回文件类型，避免对每个文件再 statSync 一次
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (err) {
+      console.error(`Error reading directory ${dir}:`, err);
+      continue;
+    }
+    for (const entry of entries) {
+      const filePath = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        stack.push(filePath);
+      } else if (entry.isFile()) {
+        pushIfImage(filePath, entry.name);
+      } else if (entry.isSymbolicLink()) {
+        // 只跟随文件链接，目录链接跳过，防止循环
+        try {
+          if (fs.statSync(filePath).isFile()) {
+            pushIfImage(filePath, entry.name);
+          }
+        } catch {}
       }
     }
-  } catch (err) {
-    console.error(`Error reading directory ${directory}:`, err);
   }
   return imageFiles;
 }

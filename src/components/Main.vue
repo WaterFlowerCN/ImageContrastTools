@@ -180,7 +180,7 @@
               <div class="classify-section" style="flex:4" v-if="horizontalGroup">
                 <div class="section-header">横图<span class="count">（{{ horizontalGroup.files.length }}张）</span></div>
                 <div class="img-list">
-                    <div class="img-item" v-for="img in horizontalGroup.files" :key="img.src">
+                    <div class="img-item" v-for="img in horizontalPageFiles" :key="img.src">
                       <a-image :width="150" class="thumb" :src="img.src" preview />
                       <div class="info">
                         <div class="name" :title="img.name">{{ img.name }}</div>
@@ -190,12 +190,21 @@
                       </div>
                     </div>
                 </div>
+                <div class="pager" v-if="horizontalGroup.files.length > PAGE_SIZE">
+                  <a-pagination
+                    v-model:current="hPage"
+                    :page-size="PAGE_SIZE"
+                    :total="horizontalGroup.files.length"
+                    size="small"
+                    simple
+                  />
+                </div>
               </div>
               <!-- 竖图列（含方图） -->
               <div class="classify-section" style="flex:4" v-if="verticalGroup">
                 <div class="section-header">竖图<span class="count">（{{ verticalGroup.files.length }}张）</span></div>
                 <div class="img-list">
-                    <div class="img-item" v-for="img in verticalGroup.files" :key="img.src">
+                    <div class="img-item" v-for="img in verticalPageFiles" :key="img.src">
                       <a-image :width="100" class="thumb" :src="img.src" preview />
                       <div class="info">
                         <div class="name" :title="img.name">{{ img.name }}</div>
@@ -204,6 +213,15 @@
                         <div class="info-row path" :title="img.src"><label>路径</label><span>{{ getShortPath(img.src) }}</span></div>
                       </div>
                     </div>
+                </div>
+                <div class="pager" v-if="verticalGroup.files.length > PAGE_SIZE">
+                  <a-pagination
+                    v-model:current="vPage"
+                    :page-size="PAGE_SIZE"
+                    :total="verticalGroup.files.length"
+                    size="small"
+                    simple
+                  />
                 </div>
               </div>
               <!-- 输出设置列 -->
@@ -230,7 +248,15 @@
                   <a-input v-model:value="outputPath" placeholder="选择输出文件夹" />
                   <a-checkbox v-model:checked="deleteOrigin" style="align-self: flex-start;">删除原文件</a-checkbox>
                   <a-button @click="selectOutputFolder" block>选择路径</a-button>
-                  <a-button type="primary" block :disabled="!outputPath" @click="doClassify">开始分类</a-button>
+                  <div v-if="classifyCopying" class="copy-progress">
+                    <div class="copy-text">正在复制：{{ classifyCopyDone }} / {{ classifyCopyTotal }}</div>
+                    <div class="copy-bar">
+                      <div class="copy-bar-inner" :style="{ width: `${classifyCopyTotal ? (classifyCopyDone / classifyCopyTotal * 100) : 0}%` }"></div>
+                    </div>
+                  </div>
+                  <a-button type="primary" block :disabled="!outputPath || classifyCopying" @click="doClassify">
+                    {{ classifyCopying ? '正在复制...' : '开始分类' }}
+                  </a-button>
                 </div>
               </div>
             </div>
@@ -332,6 +358,31 @@ const classifyAbortController = ref<AbortController>(new AbortController())
 const classifyGroups = ref<{ label: string; key: string; files: OrientedFile[] }[]>([])
 const horizontalGroup = computed(() => classifyGroups.value.find(g => g.key === 'horizontal') || null)
 const verticalGroup = computed(() => classifyGroups.value.find(g => g.key === 'vertical') || null)
+
+// 结果页分页：几万张图一次性渲染会卡死，每页只渲染一部分
+const PAGE_SIZE = 100
+const hPage = ref(1)
+const vPage = ref(1)
+const horizontalPageFiles = computed(() => {
+  const files = horizontalGroup.value?.files || []
+  const start = (hPage.value - 1) * PAGE_SIZE
+  return files.slice(start, start + PAGE_SIZE)
+})
+const verticalPageFiles = computed(() => {
+  const files = verticalGroup.value?.files || []
+  const start = (vPage.value - 1) * PAGE_SIZE
+  return files.slice(start, start + PAGE_SIZE)
+})
+watch([horizontalGroup, verticalGroup], () => {
+  hPage.value = 1
+  vPage.value = 1
+})
+
+// 复制进度
+const classifyCopying = ref(false)
+const classifyCopyDone = ref(0)
+const classifyCopyTotal = ref(0)
+const classifyCopyFailed = ref(0)
 const outputPath = ref('')
 const deleteOrigin = ref(false)
 const sourcePath = ref('')
@@ -458,6 +509,12 @@ const doClassify = async () => {
     message.info('请选择输出文件夹')
     return
   }
+  if (classifyCopying.value) return
+  classifyCopying.value = true
+  classifyCopyDone.value = 0
+  classifyCopyFailed.value = 0
+  classifyCopyTotal.value = classifyGroups.value.reduce((sum, g) => sum + g.files.length, 0)
+  const CONCURRENCY = 8
   try {
     for (const group of classifyGroups.value) {
       const folderName = folderNameMap[group.key] || group.key
@@ -465,33 +522,45 @@ const doClassify = async () => {
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true })
       }
-      for (const file of group.files) {
-        // 检查源文件是否存在
-        if (!fs.existsSync(file.src)) {
-          console.warn('文件不存在，跳过：' + file.src)
-          continue
-        }
-        const dest = path.join(dir, file.name)
-        // 直接复制，保留原文件名
-        fs.copyFileSync(file.src, dest)
-        // 勾选了删除原文件则删除源文件
-        if (deleteOrigin.value) {
-          // Windows 上文件可能被系统锁定，重试 3 次
-          for (let retry = 0; retry < 3; retry++) {
-            try {
-              fs.unlinkSync(file.src)
-              break
-            } catch (e: any) {
-              if (retry === 2 || e.code !== 'EBUSY') throw e
-              await new Promise(r => setTimeout(r, 200))
+      let cursor = 0
+      const worker = async () => {
+        while (cursor < group.files.length) {
+          const file = group.files[cursor++]
+          const dest = path.join(dir, file.name)
+          try {
+            // 异步复制，复制大文件时不会冻结界面
+            await fs.promises.copyFile(file.src, dest)
+            // 勾选了删除原文件则删除源文件
+            if (deleteOrigin.value) {
+              // Windows 上文件可能被系统锁定，重试 3 次
+              for (let retry = 0; retry < 5; retry++) {
+                try {
+                  await fs.promises.unlink(file.src)
+                  break
+                } catch (e: any) {
+                  if (e.code === 'ENOENT') break
+                  if (retry === 4) throw e
+                  await new Promise(r => setTimeout(r, 300))
+                }
+              }
             }
+          } catch (e: any) {
+            classifyCopyFailed.value++
+            console.warn('处理失败：' + file.src + ' ' + e.message)
           }
+          classifyCopyDone.value++
         }
       }
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, group.files.length) }, worker))
+    }
+    if (classifyCopyFailed.value) {
+      message.warning(`分类完成，${classifyCopyFailed.value} 个文件处理失败`)
     }
     classifyStep.value = 4
   } catch (err: any) {
     message.error('分类失败：' + err.message)
+  } finally {
+    classifyCopying.value = false
   }
 }
 
@@ -1028,6 +1097,40 @@ watch(step, (val) => {
           font-size: 11px;
         }
       }
+    }
+  }
+}
+
+/* 分类结果分页 */
+.pager {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+  border-top: 1px solid #f0f0f0;
+  background: #fff;
+}
+
+/* 复制进度 */
+.copy-progress {
+  width: 100%;
+
+  .copy-text {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 4px;
+  }
+
+  .copy-bar {
+    height: 6px;
+    background: #f0f0f0;
+    border-radius: 3px;
+    overflow: hidden;
+
+    .copy-bar-inner {
+      height: 100%;
+      background: #1677ff;
+      transition: width 0.2s;
     }
   }
 }
